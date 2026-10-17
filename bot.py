@@ -7,12 +7,15 @@ Flow:
 3. "Other issue / Raise a ticket" -> user types the issue -> saved to the Google Form
    -> bot shows the support WhatsApp number and Telegram username.
 """
+import asyncio
 import logging
 import os
+import threading
 import random
 import re
 import string
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import httpx
 from telegram import (
@@ -291,6 +294,23 @@ async def fallback_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Please send /start to begin.")
 
 
+# Tiny web server so Render's free Web Service sees an open port.
+# Not needed on a VPS, but harmless there.
+class Ping(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, *args):
+        pass
+
+
+def keep_alive():
+    port = int(os.environ.get("PORT", 10000))
+    HTTPServer(("0.0.0.0", port), Ping).serve_forever()
+
+
 def main():
     persistence = PicklePersistence(filepath="bot_data.pkl")
     app = Application.builder().token(BOT_TOKEN).persistence(persistence).build()
@@ -324,6 +344,8 @@ def main():
     app.add_handler(MessageHandler(text_only, fallback_text))
 
     log.info("Bot started")
+    threading.Thread(target=keep_alive, daemon=True).start()
+    asyncio.set_event_loop(asyncio.new_event_loop())
     app.run_polling()
 
 
