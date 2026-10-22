@@ -55,8 +55,8 @@ ENTRY = {
 }
 
 # Support contact shown after a ticket (leave a value as "" to hide it)
-SUPPORT_WHATSAPP = "91XXXXXXXXXX"      # digits only, with country code
-SUPPORT_USERNAME = "PASTE_SUPPORT_USERNAME"  # Telegram username without @
+#SUPPORT_WHATSAPP = "91XXXXXXXXXX"      # digits only, with country code
+#SUPPORT_USERNAME = "PASTE_SUPPORT_USERNAME"  # Telegram username without @
 
 # Optional: numeric Telegram ID of the support assistant for instant alerts.
 # They must press Start on the bot once. Set as environment variable.
@@ -253,14 +253,12 @@ async def get_issue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    lines = [f"Your ticket is raised.\n\nTicket ID: {ticket_id}\n", "Contact our support team:"]
-    if SUPPORT_WHATSAPP:
-        lines.append(f"WhatsApp: +{SUPPORT_WHATSAPP}\nhttps://wa.me/{SUPPORT_WHATSAPP}")
-    if SUPPORT_USERNAME:
-        lines.append(f"Telegram: @{SUPPORT_USERNAME}\nhttps://t.me/{SUPPORT_USERNAME}")
-    lines.append("\nPlease share your Ticket ID with them.")
-    await update.message.reply_text("\n".join(lines))
-
+       await update.message.reply_text(
+        "Your ticket is raised.\n\n"
+        f"Ticket ID: {ticket_id}\n\n"
+        "Our team will contact you within 4 hours. "
+        "Please keep your Ticket ID for reference."
+    )
     if SUPPORT_CHAT_ID:
         try:
             await context.bot.send_message(
