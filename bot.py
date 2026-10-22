@@ -1,11 +1,12 @@
 """
-FOGM Support Bot (v2)
+FOGM Support Bot (v3)
 
 Flow:
 1. New user: bot asks phone -> email -> name, saves ONE row to the Google Form.
 2. Menu: Withdraw / Deposit / Account opening / MT5 issue -> bot replies with a video link.
 3. "Other issue / Raise a ticket" -> user types the issue -> saved to the Google Form
-   -> bot shows the support WhatsApp number and Telegram username.
+   -> bot confirms the ticket and says the team will contact the user within 4 hours.
+   (No support number or username is shown anymore.)
 """
 import asyncio
 import logging
@@ -54,9 +55,8 @@ ENTRY = {
     "issue": "entry.1856751537",
 }
 
-# Support contact shown after a ticket (leave a value as "" to hide it)
-#SUPPORT_WHATSAPP = "91XXXXXXXXXX"      # digits only, with country code
-#SUPPORT_USERNAME = "PASTE_SUPPORT_USERNAME"  # Telegram username without @
+# How soon the team replies. Shown to the user after a ticket is raised.
+RESPONSE_TIME = "4 hours"
 
 # Optional: numeric Telegram ID of the support assistant for instant alerts.
 # They must press Start on the bot once. Set as environment variable.
@@ -253,12 +253,13 @@ async def get_issue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-       await update.message.reply_text(
+    await update.message.reply_text(
         "Your ticket is raised.\n\n"
         f"Ticket ID: {ticket_id}\n\n"
-        "Our team will contact you within 4 hours. "
+        f"Our team will contact you within {RESPONSE_TIME}. "
         "Please keep your Ticket ID for reference."
     )
+
     if SUPPORT_CHAT_ID:
         try:
             await context.bot.send_message(
