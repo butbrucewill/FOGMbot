@@ -1,12 +1,14 @@
 """
-FOGM Support Bot (v3)
+FOGM Support Bot (v2)
 
 Flow:
 1. New user: bot asks phone -> email -> name, saves ONE row to the Google Form.
 2. Menu: Withdraw / Deposit / Account opening / MT5 issue -> bot replies with a video link.
-3. "Other issue / Raise a ticket" -> user types the issue -> saved to the Google Form
-   -> bot confirms the ticket and says the team will contact the user within 4 hours.
-   (No support number or username is shown anymore.)
+3. Every topic the user opens is also logged to the Google Sheet.
+4. Support team: /resolve TICKET_ID tells the user the issue is resolved,
+   /reply TICKET_ID message sends them any message.
+5. "Other issue / Raise a ticket" -> user types the issue -> saved to the Google Form
+   -> bot confirms the ticket (team replies within 4 hours).
 """
 import asyncio
 import logging
@@ -55,34 +57,42 @@ ENTRY = {
     "issue": "entry.1856751537",
 }
 
-# How soon the team replies. Shown to the user after a ticket is raised.
-RESPONSE_TIME = "4 hours"
+# Support contact shown after a ticket (leave a value as "" to hide it)
+SUPPORT_WHATSAPP = "91XXXXXXXXXX"      # digits only, with country code
+SUPPORT_USERNAME = "PASTE_SUPPORT_USERNAME"  # Telegram username without @
 
-# Optional: numeric Telegram ID of the support assistant for instant alerts.
-# They must press Start on the bot once. Set as environment variable.
-SUPPORT_CHAT_ID = os.environ.get("SUPPORT_CHAT_ID", "")
+# After a ticket the bot says the team will contact the user within 4 hours.
+# Set to True to also show the WhatsApp number / Telegram username below.
+SHOW_SUPPORT_CONTACT = False
+
+# Numeric Telegram IDs of your support team (comma separated), set as the
+# environment variable SUPPORT_TEAM_IDS, for example: 123456789,987654321
+# Each member must press Start on the bot once. They get new-ticket alerts and
+# can use /resolve and /reply. (The old SUPPORT_CHAT_ID variable still works.)
+_team_raw = os.environ.get("SUPPORT_TEAM_IDS") or os.environ.get("SUPPORT_CHAT_ID", "")
+SUPPORT_TEAM_IDS = {int(x) for x in re.split(r"[,\s]+", _team_raw) if x.isdigit()}
 
 # Issue topics: key -> (button label, message, video link)
 TOPICS = {
     "withdraw": (
         "Withdraw issue",
         "Having trouble withdrawing? Watch this short video, it covers the common causes and fixes.",
-        "https://t.me/c/4371785171/1075",
+        "https://youtu.be/REPLACE_WITHDRAW",
     ),
     "deposit": (
         "Deposit issue",
         "Deposit not showing or failing? This video explains what to check.",
-        "https://t.me/c/4371785171/1075",
+        "https://youtu.be/REPLACE_DEPOSIT",
     ),
     "account": (
         "Account opening issue",
         "Stuck while opening your account? Follow this step-by-step video.",
-        "https://t.me/c/4371785171/1075",
+        "https://youtu.be/REPLACE_ACCOUNT",
     ),
     "mt5": (
         "MT5 issue",
         "Problem with MT5 login or connection? This video shows how to fix it.",
-        "https://t.me/c/4371785171/1078",
+        "https://youtu.be/REPLACE_MT5",
     ),
 }
 # --------------------------------------------------------------------------
@@ -223,6 +233,12 @@ async def topic_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await q.edit_message_text(f"{label}\n\n{text}\n\nVideo: {link}", reply_markup=buttons)
 
+    # Record the selection (with the user's details) in the Google Sheet
+    payload = user_fields(update, context)
+    payload[ENTRY["type"]] = f"Topic: {label}"
+    payload[ENTRY["issue"]] = label
+    await save_to_form(payload)
+
 
 # ----------------------------------------------------------- ticket flow ---
 async def ticket_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -237,6 +253,12 @@ async def ticket_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
     await send("Please describe your issue in detail. (Send /cancel to stop.)")
+
+    # Record that the user chose "Other issue / Raise a ticket"
+    choice = user_fields(update, context)
+    choice[ENTRY["type"]] = "Topic: Other issue / Raise a ticket"
+    choice[ENTRY["issue"]] = "Other issue / Raise a ticket"
+    await save_to_form(choice)
     return ISSUE
 
 
@@ -253,30 +275,125 @@ async def get_issue(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    await update.message.reply_text(
-        "Your ticket is raised.\n\n"
-        f"Ticket ID: {ticket_id}\n\n"
-        f"Our team will contact you within {RESPONSE_TIME}. "
-        "Please keep your Ticket ID for reference."
+    put_ticket(
+        context,
+        ticket_id,
+        {
+            "chat_id": update.effective_chat.id,
+            "name": context.user_data.get("name", ""),
+            "phone": context.user_data.get("phone", ""),
+            "email": context.user_data.get("email", ""),
+            "tg_username": payload[ENTRY["tg_username"]],
+            "status": "open",
+        },
     )
 
-    if SUPPORT_CHAT_ID:
+    lines = [
+        f"Your ticket is raised.\n\nTicket ID: {ticket_id}\n",
+        "Our support team will contact you within 4 hours.",
+    ]
+    if SHOW_SUPPORT_CONTACT:
+        if SUPPORT_WHATSAPP:
+            lines.append(f"\nWhatsApp: +{SUPPORT_WHATSAPP}\nhttps://wa.me/{SUPPORT_WHATSAPP}")
+        if SUPPORT_USERNAME:
+            lines.append(f"Telegram: @{SUPPORT_USERNAME}\nhttps://t.me/{SUPPORT_USERNAME}")
+    await update.message.reply_text("\n".join(lines))
+
+    alert = (
+        f"New ticket {ticket_id}\n"
+        f"Name: {payload[ENTRY['name']]}\n"
+        f"Phone: {payload[ENTRY['phone']]}\n"
+        f"Email: {payload[ENTRY['email']]}\n"
+        f"Telegram: {payload[ENTRY['tg_username']]} ({payload[ENTRY['tg_id']]})\n\n"
+        f"{payload[ENTRY['issue']]}\n\n"
+        f"When solved, send: /resolve {ticket_id}"
+    )
+    for member_id in SUPPORT_TEAM_IDS:
         try:
-            await context.bot.send_message(
-                chat_id=int(SUPPORT_CHAT_ID),
-                text=(
-                    f"New ticket {ticket_id}\n"
-                    f"Name: {payload[ENTRY['name']]}\n"
-                    f"Phone: {payload[ENTRY['phone']]}\n"
-                    f"Email: {payload[ENTRY['email']]}\n"
-                    f"Telegram: {payload[ENTRY['tg_username']]} ({payload[ENTRY['tg_id']]})\n\n"
-                    f"{payload[ENTRY['issue']]}"
-                ),
-            )
+            await context.bot.send_message(chat_id=member_id, text=alert)
         except Exception:
-            log.exception("Could not notify support assistant")
+            log.exception("Could not notify support member %s", member_id)
 
     return ConversationHandler.END
+
+
+# ------------------------------------------------- support team commands ---
+def put_ticket(context: ContextTypes.DEFAULT_TYPE, ticket_id: str, info: dict):
+    # Build a new dict each time so the persistence layer notices the change.
+    tickets = dict(context.application.bot_data.get("tickets", {}))
+    tickets[ticket_id] = info
+    context.application.bot_data["tickets"] = tickets
+
+
+async def _support_lookup(update: Update, context: ContextTypes.DEFAULT_TYPE, usage: str):
+    """Shared checks for /resolve and /reply. Returns (ticket_id, ticket, rest) or None."""
+    if update.effective_user.id not in SUPPORT_TEAM_IDS:
+        await update.message.reply_text("You are not authorised to use this command.")
+        return None
+    if not context.args:
+        await update.message.reply_text(usage)
+        return None
+    ticket_id = context.args[0].upper()
+    ticket = context.application.bot_data.get("tickets", {}).get(ticket_id)
+    if not ticket:
+        await update.message.reply_text(f"Ticket {ticket_id} not found.")
+        return None
+    return ticket_id, ticket, " ".join(context.args[1:]).strip()
+
+
+async def resolve_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/resolve TICKET_ID [optional note]  -> tells the user their issue is resolved."""
+    found = await _support_lookup(update, context, "Usage: /resolve TICKET_ID [optional note]")
+    if not found:
+        return
+    ticket_id, ticket, note = found
+
+    text = f"Good news! Your ticket {ticket_id} has been marked as resolved."
+    if note:
+        text += f"\n\nNote from support: {note}"
+    text += "\n\nIf you still face the issue, you can raise a new ticket with /ticket."
+    try:
+        await context.bot.send_message(chat_id=ticket["chat_id"], text=text)
+    except Exception:
+        log.exception("Could not message user for ticket %s", ticket_id)
+        await update.message.reply_text("Could not message the user (they may have blocked the bot).")
+        return
+
+    put_ticket(context, ticket_id, {**ticket, "status": "resolved"})
+    await save_to_form(
+        {
+            ENTRY["type"]: "Resolved",
+            ENTRY["ticket_id"]: ticket_id,
+            ENTRY["tg_id"]: str(ticket["chat_id"]),
+            ENTRY["tg_username"]: ticket.get("tg_username", ""),
+            ENTRY["name"]: ticket.get("name", ""),
+            ENTRY["phone"]: ticket.get("phone", ""),
+            ENTRY["email"]: ticket.get("email", ""),
+            ENTRY["issue"]: f"Resolved by {update.effective_user.full_name}. {note}".strip(),
+        }
+    )
+    await update.message.reply_text(f"User notified. Ticket {ticket_id} marked as resolved.")
+
+
+async def reply_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/reply TICKET_ID your message  -> sends any message to the ticket's user."""
+    found = await _support_lookup(update, context, "Usage: /reply TICKET_ID your message")
+    if not found:
+        return
+    ticket_id, ticket, message = found
+    if not message:
+        await update.message.reply_text("Usage: /reply TICKET_ID your message")
+        return
+    try:
+        await context.bot.send_message(
+            chat_id=ticket["chat_id"],
+            text=f"Message from support about ticket {ticket_id}:\n\n{message}",
+        )
+    except Exception:
+        log.exception("Could not message user for ticket %s", ticket_id)
+        await update.message.reply_text("Could not message the user (they may have blocked the bot).")
+        return
+    await update.message.reply_text(f"Message sent to the user of ticket {ticket_id}.")
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -338,6 +455,8 @@ def main():
     app.add_handler(register_conv)
     app.add_handler(ticket_conv)
     app.add_handler(CommandHandler("menu", menu_cmd))
+    app.add_handler(CommandHandler("resolve", resolve_cmd))
+    app.add_handler(CommandHandler("reply", reply_cmd))
     app.add_handler(CallbackQueryHandler(menu_cb, pattern="^menu$"))
     app.add_handler(CallbackQueryHandler(topic_answer, pattern=r"^topic_\w+$"))
     app.add_handler(MessageHandler(text_only, fallback_text))
