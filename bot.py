@@ -58,8 +58,8 @@ ENTRY = {
 }
 
 # Support contact shown after a ticket (leave a value as "" to hide it)
-SUPPORT_WHATSAPP = "91XXXXXXXXXX"      # digits only, with country code
-SUPPORT_USERNAME = "PASTE_SUPPORT_USERNAME"  # Telegram username without @
+# SUPPORT_WHATSAPP = "91XXXXXXXXXX"      # digits only, with country code
+#SUPPORT_USERNAME = "PASTE_SUPPORT_USERNAME"  # Telegram username without @
 
 # After a ticket the bot says the team will contact the user within 4 hours.
 # Set to True to also show the WhatsApp number / Telegram username below.
@@ -77,22 +77,22 @@ TOPICS = {
     "withdraw": (
         "Withdraw issue",
         "Having trouble withdrawing? Watch this short video, it covers the common causes and fixes.",
-        "https://youtu.be/REPLACE_WITHDRAW",
+        "https://t.me/c/4371785171/1075",
     ),
     "deposit": (
         "Deposit issue",
         "Deposit not showing or failing? This video explains what to check.",
-        "https://youtu.be/REPLACE_DEPOSIT",
+        "https://t.me/c/4371785171/1075",
     ),
     "account": (
         "Account opening issue",
         "Stuck while opening your account? Follow this step-by-step video.",
-        "https://youtu.be/REPLACE_ACCOUNT",
+        "https://t.me/c/4371785171/1075",
     ),
     "mt5": (
         "MT5 issue",
         "Problem with MT5 login or connection? This video shows how to fix it.",
-        "https://youtu.be/REPLACE_MT5",
+        "https://t.me/c/4371785171/1078",
     ),
 }
 # --------------------------------------------------------------------------
