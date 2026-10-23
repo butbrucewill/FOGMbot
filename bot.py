@@ -67,22 +67,22 @@ TOPICS = {
     "withdraw": (
         "Withdraw issue",
         "Having trouble withdrawing? Watch this short video, it covers the common causes and fixes.",
-        "https://youtu.be/REPLACE_WITHDRAW",
+        "https://t.me/c/4371785171/1075",
     ),
     "deposit": (
         "Deposit issue",
         "Deposit not showing or failing? This video explains what to check.",
-        "https://youtu.be/REPLACE_DEPOSIT",
+        "https://t.me/c/4371785171/1075",
     ),
     "account": (
         "Account opening issue",
         "Stuck while opening your account? Follow this step-by-step video.",
-        "https://youtu.be/REPLACE_ACCOUNT",
+        "https://t.me/c/4371785171/1075",
     ),
     "mt5": (
         "MT5 issue",
         "Problem with MT5 login or connection? This video shows how to fix it.",
-        "https://youtu.be/REPLACE_MT5",
+        "https://t.me/c/4371785171/1078",
     ),
 }
 # --------------------------------------------------------------------------
