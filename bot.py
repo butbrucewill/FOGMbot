@@ -87,12 +87,12 @@ TOPICS = {
     "account": (
         "Account opening issue",
         "Stuck while opening your account? Follow this step-by-step video.",
-        "https://t.me/c/4371785171/1075",
+        "https://youtu.be/7wJ4PDzP0E8?si=MP46bbMfTo8mdq3H",
     ),
     "mt5": (
         "MT5 issue",
         "Problem with MT5 login or connection? This video shows how to fix it.",
-        "https://t.me/c/4371785171/1078",
+        "https://youtu.be/DJLNjWQ4qAg?si=hRoZhMpiXwk_N1h-",
     ),
 }
 # --------------------------------------------------------------------------
